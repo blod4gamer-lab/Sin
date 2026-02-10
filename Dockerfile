@@ -1,16 +1,16 @@
 FROM python:3.10-slim
 
-# تثبيت ffmpeg لتشغيل عمليات التحويل الصوتي
+# تثبيت التحديثات و ffmpeg
 RUN apt-get update && apt-get install -y ffmpeg && apt-get clean
 
-# تحديد مجلد العمل
+# تحديد المجلد
 WORKDIR /app
 
-# نسخ جميع الملفات إلى السيرفر
+# نسخ الملفات
 COPY . .
 
-# تثبيت المكتبات من ملف requirements
-RUN pip install --no-cache-dir -r requirements.txt
+# تثبيت المكتبات بشكل مباشر لضمان عدم حدوث خطأ
+RUN pip install --no-cache-dir python-telegram-bot yt-dlp flask nest_asyncio
 
-# أمر تشغيل البوت
+# تشغيل البوت
 CMD ["python", "app.py"]
