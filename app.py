@@ -1,5 +1,4 @@
 import os
-import time
 import asyncio
 import logging
 import threading
@@ -10,185 +9,140 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputFi
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackQueryHandler, ContextTypes
 from telegram.constants import ParseMode
 
-# --- إعدادات البيئة ---
+# --- إعدادات النظام ---
 nest_asyncio.apply()
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# التوكن الخاص بك
 BOT_TOKEN = "8338630448:AAGj2rYfAB-R8vh_NTLrRsLvHnqi794tMDA"
-DOWNLOAD_DIR = "temp_downloads"
+DOWNLOAD_DIR = "downloads"
 
 if not os.path.exists(DOWNLOAD_DIR):
     os.makedirs(DOWNLOAD_DIR)
 
-# --- سيرفر الويب لمنع Render من النوم ---
+# --- واجهة الويب الاحترافية ---
 web_app = Flask(__name__)
-
 @web_app.route('/')
-def health_check():
-    return "🚀 SIN SERVER IS RUNNING AND HEALTHY", 200
+def home():
+    return "🌐 SIN DOWNLOADER API IS ACTIVE", 200
 
 def run_web_server():
     port = int(os.environ.get("PORT", 10000))
     web_app.run(host='0.0.0.0', port=port)
 
-# --- محرك التحميل الذكي (المحسن لتجاوز القيود) ---
-class SinDownloader:
+# --- محرك التحميل الشامل (SIN ENGINE) ---
+class SinEngine:
     @staticmethod
-    def get_opts(mode, quality_tag=None):
-        # إعدادات متقدمة لتجاوز حظر يوتيوب وطلب تسجيل الدخول
-        base_opts = {
+    def get_settings(mode, quality=None):
+        settings = {
             'quiet': True,
             'no_warnings': True,
-            'nocheckcertificate': True,
-            'ignoreerrors': False,
-            'outtmpl': f'{DOWNLOAD_DIR}/sin_%(title)s.%(ext)s',
-            'restrictfilenames': True,
-            # التمويه (Headers) لتبدو كمتصفح حقيقي
+            'outtmpl': f'{DOWNLOAD_DIR}/%(title)s.%(ext)s',
+            # تقنية التمويه المتقدمة لتجاوز القيود بدون كوكيز
             'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
             'referer': 'https://www.google.com/',
-            'http_headers': {
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.9',
-            },
-            # تجاوز قيود العمر والمناطق الجغرافية
+            'nocheckcertificate': True,
+            'geo_bypass': True,
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['android', 'web', 'ios'],
+                    'player_client': ['android', 'ios'], # محاكاة تطبيقات الهاتف للهرب من حظر المتصفحات
                     'player_skip': ['webpage', 'configs'],
                 }
             },
         }
-
         if mode == 'audio':
-            base_opts.update({
+            settings.update({
                 'format': 'bestaudio/best',
-                'postprocessors': [{
-                    'key': 'FFmpegExtractAudio',
-                    'preferredcodec': 'mp3',
-                    'preferredquality': '192',
-                }],
+                'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'}],
             })
         else:
-            # اختيار الجودة بدقة
-            fmt = f"bestvideo[height<={quality_tag}]+bestaudio/best" if quality_tag else "bestvideo+bestaudio/best"
-            base_opts.update({
-                'format': fmt,
-                'merge_output_format': 'mp4',
-            })
-        
-        return base_opts
+            fmt = f"bestvideo[height<={quality}]+bestaudio/best/best" if quality else "best"
+            settings.update({'format': fmt, 'merge_output_format': 'mp4'})
+        return settings
 
-# --- معالجات البوت ---
+# --- معالجات البوت (الواجهة الإعلانية) ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user.first_name
-    welcome_text = (
-        f"👋 **أهلاً بك يا {user} في SIN SERVER**\n"
+    msg = (
+        "⚡ **SIN DOWNLOADER** ⚡\n"
         "━━━━━━━━━━━━━━━━━━\n"
-        "⚡ **سيرفر التحميل الأسرع يعمل الآن في الخلفية**\n"
-        "📥 **أرسل رابط فيديو من يوتيوب، تيك توك، أو انستجرام:**"
+        "أهلاً بك في أقوى بوت لتحميل الوسائط!\n\n"
+        "✨ **مميزاتنا:**\n"
+        "• 🚀 تحميل فائق السرعة من +1000 موقع.\n"
+        "• 🎬 دعم جميع الجودات حتى 4K.\n"
+        "• 🎵 تحويل مباشر إلى MP3 بجودة عالية.\n"
+        "• 📱 يدعم TikTok, Instagram, YouTube, Facebook.\n\n"
+        "📥 **فقط أرسل الرابط واترك الباقي لنا!**"
     )
-    await update.message.reply_text(welcome_text, parse_mode=ParseMode.MARKDOWN)
+    await update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN)
 
-async def process_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = update.message.text
-    if not url.startswith("http"):
-        return
+    if not url.startswith("http"): return
 
-    wait_msg = await update.message.reply_text("🔍 **جاري فحص الرابط وتجاوز القيود...**")
+    status_msg = await update.message.reply_text("🔍 **جاري معالجة الرابط وتحليل البيانات...**")
     
     try:
-        # جلب معلومات الفيديو بدون تحميل للتأكد من الرابط
         with yt_dlp.YoutubeDL({'quiet': True}) as ydl:
             info = await asyncio.get_event_loop().run_in_executor(None, lambda: ydl.extract_info(url, download=False))
-            title = info.get('title', 'فيديو بدون عنوان')
+            title = info.get('title', 'Video')
             
-        context.user_data['current_url'] = url
-        
-        keyboard = [
-            [
-                InlineKeyboardButton("🎬 1080p", callback_data="v_1080"),
-                InlineKeyboardButton("🎬 720p", callback_data="v_720")
-            ],
-            [
-                InlineKeyboardButton("🎬 480p", callback_data="v_480"),
-                InlineKeyboardButton("🎵 MP3 Audio", callback_data="a_mp3")
-            ]
+        context.user_data['url'] = url
+        buttons = [
+            [InlineKeyboardButton("🎬 1080p", callback_data="v_1080"), InlineKeyboardButton("🎬 720p", callback_data="v_720")],
+            [InlineKeyboardButton("🎬 480p", callback_data="v_480"), InlineKeyboardButton("🎵 MP3", callback_data="a_mp3")]
         ]
-        
-        await wait_msg.edit_text(
-            f"✅ **تم العثور على:**\n`{title[:50]}...`\n\n**إختر الجودة المطلوبة:**",
-            reply_markup=InlineKeyboardMarkup(keyboard),
+        await status_msg.edit_text(
+            f"✅ **تم العثور على:**\n`{title[:60]}`\n\n**إختر الجودة المطلوبة للبدء:**",
+            reply_markup=InlineKeyboardMarkup(buttons),
             parse_mode=ParseMode.MARKDOWN
         )
-    except Exception as e:
-        logger.error(f"Error: {e}")
-        await wait_msg.edit_text("❌ **فشل في الوصول للفيديو.**\nقد يكون الفيديو خاصاً أو يتطلب تسجيل دخول صارم.")
+    except:
+        await status_msg.edit_text("❌ **عذراً، هذا الرابط محمي أو غير مدعوم حالياً.**\nجرب رابطاً آخر أو حاول لاحقاً.")
 
-async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def download_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
     data = query.data
-    url = context.user_data.get('current_url')
-    
-    if not url:
-        await query.edit_message_text("⚠️ حدث خطأ، أرسل الرابط مرة أخرى.")
-        return
+    url = context.user_data.get('url')
+    if not url: return
 
-    await query.edit_message_text("⚙️ **بدأ التحميل عبر سيرفر SIN... يرجى الانتظار**")
+    await query.edit_message_text("⏳ **يتم الآن معالجة طلبك عبر سيرفرات SIN...**")
 
     mode = 'audio' if data == 'a_mp3' else 'video'
-    quality = data.split('_')[1] if mode == 'video' else None
+    q = data.split('_')[1] if mode == 'video' else None
     
     try:
-        opts = SinDownloader.get_opts(mode, quality)
-        
-        def download_sync():
+        opts = SinEngine.get_settings(mode, q)
+        def dl():
             with yt_dlp.YoutubeDL(opts) as ydl:
-                info_dict = ydl.extract_info(url, download=True)
-                return ydl.prepare_filename(info_dict)
+                res = ydl.extract_info(url, download=True)
+                return ydl.prepare_filename(res)
 
-        file_path = await asyncio.get_event_loop().run_in_executor(None, download_sync)
-        
-        # تصحيح الامتداد في حالة تحويل الصوت
-        if mode == 'audio':
-            actual_path = file_path.rsplit('.', 1)[0] + ".mp3"
-        else:
-            actual_path = file_path
+        path = await asyncio.get_event_loop().run_in_executor(None, dl)
+        final_path = path.rsplit('.', 1)[0] + ".mp3" if mode == 'audio' else path
 
-        await query.edit_message_text("🚀 **تم التحميل! جاري الرفع إلى تيليجرام...**")
+        await query.edit_message_text("🚀 **اكتمل التحميل! يتم الآن إرسال الملف...**")
         
-        with open(actual_path, 'rb') as f:
+        with open(final_path, 'rb') as f:
             if mode == 'audio':
-                await context.bot.send_audio(chat_id=update.effective_chat.id, audio=InputFile(f), caption="✅ SIN SERVER - MP3")
+                await context.bot.send_audio(chat_id=update.effective_chat.id, audio=InputFile(f), caption="✅ @SIN_DOWNLOADER")
             else:
-                await context.bot.send_video(chat_id=update.effective_chat.id, video=InputFile(f), supports_streaming=True, caption="✅ SIN SERVER - MP4")
+                await context.bot.send_video(chat_id=update.effective_chat.id, video=InputFile(f), caption="✅ @SIN_DOWNLOADER")
 
-        # تنظيف الملفات بعد الإرسال
-        if os.path.exists(actual_path):
-            os.remove(actual_path)
+        if os.path.exists(final_path): os.remove(final_path)
         await query.message.delete()
+    except:
+        await query.edit_message_text("❌ **فشل النظام في تجاوز حماية الرابط.**\nهذا المحتوى يتطلب صلاحيات خاصة.")
 
-    except Exception as e:
-        logger.error(f"Download Error: {e}")
-        await query.edit_message_text(f"❌ **حدث خطأ أثناء المعالجة:**\n`يوتيوب يفرض قيوداً على هذا الرابط حالياً.`")
-
-# --- التشغيل الرئيسي ---
 def main():
-    # تشغيل سيرفر الويب في الخلفية
     threading.Thread(target=run_web_server, daemon=True).start()
-    
-    # بناء البوت
-    application = Application.builder().token(BOT_TOKEN).build()
-    
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, process_link))
-    application.add_handler(CallbackQueryHandler(button_callback))
-    
-    print("💎 SIN SERVER ULTIMATE IS NOW LIVE ON RENDER")
-    application.run_polling(drop_pending_updates=True)
+    app = Application.builder().token(BOT_TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_url))
+    app.add_handler(CallbackQueryHandler(download_action))
+    print("💎 SIN DOWNLOADER IS ONLINE")
+    app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
     main()
