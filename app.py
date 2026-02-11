@@ -16,7 +16,7 @@ nest_asyncio.apply()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("SinDownloader")
 
-BOT_TOKEN = "8338630448:AAGj2rYfAB-R8vh_NTLrRsLvHnqi794tMDA"
+BOT_TOKEN = ""
 DOWNLOAD_DIR = "storage"
 
 if not os.path.exists(DOWNLOAD_DIR):
