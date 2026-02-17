@@ -1,4 +1,2 @@
 python-telegram-bot
-yt-dlp
-flask
-nest_asyncio
+requests
